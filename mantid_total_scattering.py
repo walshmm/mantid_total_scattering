@@ -427,26 +427,26 @@ if __name__ == "__main__":
     sample['Background']['Runs'] = expand_ints(
         sample['Background'].get('Runs', None))
 
-    sam_scans = ','.join(['%s_%d' % (instr, num) for num in sample['Runs']])
-    container_scans = ','.join(['%s_%d' % (instr, num)
-                          for num in sample['Background']["Runs"]])
+    sam_scans = ','.join(['%s%d' % (instr, num) for num in sample['Runs']])
+    container_scans = ','.join(['%s%d' % (instr, num)
+                                for num in sample['Background']["Runs"]])
     container_bg = None
     if "Background" in sample['Background']:
         sample['Background']['Background']['Runs'] = expand_ints(
             sample['Background']['Background']['Runs'])
-        container_bg = ','.join(['%s_%d' % (instr, num)
+        container_bg = ','.join(['%s%d' % (instr, num)
                                  for num in sample['Background']['Background']['Runs']])
         if len(container_bg) == 0:
             container_bg = None
 
     van['Runs'] = expand_ints(van['Runs'])
-    van_scans = ','.join(['%s_%d' % (instr, num) for num in van['Runs']])
+    van_scans = ','.join(['%s%d' % (instr, num) for num in van['Runs']])
 
     van_bg_scans = None
     if 'Background' in van:
         van_bg_scans = van['Background']['Runs']
         van_bg_scans = expand_ints(van_bg_scans)
-        van_bg_scans = ','.join(['%s_%d' % (instr, num) for num in van_bg_scans])
+        van_bg_scans = ','.join(['%s%d' % (instr, num) for num in van_bg_scans])
 
     # Override Nexus file basename with Filenames if present
     if "Filenames" in sample:
@@ -461,14 +461,13 @@ if __name__ == "__main__":
     if "Background" in van:
         if "Filenames" in van['Background']:
             van_bg_scans = ','.join(van['Background']["Filenames"])
- 
+
     # Output nexus filename
     nexus_filename = title + '.nxs'
     try:
         os.remove(nexus_filename)
     except OSError:
         pass
-
 
     # Get sample corrections
     sam_geometry = sample.get('Geometry', None)
@@ -494,9 +493,9 @@ if __name__ == "__main__":
     # alignAndFocusArgs['GroupFilename'] don't use
     # alignAndFocusArgs['Params'] = "0.,0.02,40."
     alignAndFocusArgs['ResampleX'] = -6000
-    alignAndFocusArgs['Dspacing'] = True
-    alignAndFocusArgs['PreserveEvents'] = True
-    alignAndFocusArgs['RemovePromptPulseWidth'] = 50
+    alignAndFocusArgs['Dspacing'] = False
+    alignAndFocusArgs['PreserveEvents'] = False
+    #alignAndFocusArgs['RemovePromptPulseWidth'] = 50
     alignAndFocusArgs['MaxChunkSize'] = 8
     # alignAndFocusArgs['CompressTolerance'] use defaults
     # alignAndFocusArgs['UnwrapRef'] POWGEN option
@@ -532,7 +531,7 @@ if __name__ == "__main__":
         LoadDiffCal(alignAndFocusArgs['CalFilename'],
                     InstrumentName= instr,
                     WorkspaceName=grp_wksp.replace('_group',''),
-                    MakeGroupingWorkspace=True, 
+                    MakeGroupingWorkspace=True,
                     MakeCalWorkspace=False,
                     MakeMaskWorkspace=False)
         grp_wksp = None
@@ -570,6 +569,7 @@ if __name__ == "__main__":
         new_sam_geometry[key] = v
     sam_geometry = new_sam_geometry
     sam_geometry.update({'Center': [0., 0., 0., ]})
+    sam_geometry['Shape'] = 'Cylinder'
     sam_material = str(sam_material)
     SetSample(
         InputWorkspace=sam_wksp,
@@ -904,7 +904,7 @@ if __name__ == "__main__":
         lambda_binning_calc = van['InelasticCorrection']['LambdaBinningForCalc']
         print('van_scan:',van_scan)
         GetIncidentSpectrumFromMonitor(
-            '%s_%s' %
+            '%s%s' %
             (instr, str(van_scan)), OutputWorkspace=van_incident_wksp)
 
         fit_type = van['InelasticCorrection']['FitSpectrumWith']
@@ -1016,10 +1016,10 @@ if __name__ == "__main__":
         LHSWorkspace=sam_wksp,
         RHSWorkspace=van_corrected,
         OutputWorkspace=sam_wksp)
-    Divide(
-        LHSWorkspace=sam_raw,
-        RHSWorkspace=van_corrected,
-        OutputWorkspace=sam_raw)
+    #Divide(
+    #    LHSWorkspace=sam_raw,
+    #    RHSWorkspace=van_corrected,
+    #    OutputWorkspace=sam_raw)
 
     sample_title += "_normalized"
     save_banks(InputWorkspace=sam_wksp,
@@ -1066,20 +1066,20 @@ if __name__ == "__main__":
         LHSWorkspace=container,
         RHSWorkspace=van_corrected,
         OutputWorkspace=container)
-    Divide(
-        LHSWorkspace=container_raw,
-        RHSWorkspace=van_corrected,
-        OutputWorkspace=container_raw)
-    if van_bg is not None:
-        Divide(
-            LHSWorkspace=van_bg,
-            RHSWorkspace=van_corrected,
-            OutputWorkspace=van_bg)
-    if container_bg is not None:
-        Divide(
-            LHSWorkspace=container_bg,
-            RHSWorkspace=van_corrected,
-            OutputWorkspace=container_bg)
+    #Divide(
+    #    LHSWorkspace=container_raw,
+    #    RHSWorkspace=van_corrected,
+    #    OutputWorkspace=container_raw)
+    #if van_bg is not None:
+    #    Divide(
+    #        LHSWorkspace=van_bg,
+    #        RHSWorkspace=van_corrected,
+    #        OutputWorkspace=van_bg)
+    #if container_bg is not None:
+    #    Divide(
+    #        LHSWorkspace=container_bg,
+    #        RHSWorkspace=van_corrected,
+    #        OutputWorkspace=container_bg)
 
     print()
     print("## Container After Divide##")
@@ -1218,7 +1218,7 @@ if __name__ == "__main__":
             lambda_binning_fit = sample['InelasticCorrection']['LambdaBinningForFit']
             lambda_binning_calc = sample['InelasticCorrection']['LambdaBinningForCalc']
             GetIncidentSpectrumFromMonitor(
-                '%s_%s' %
+                '%s%s' %
                 (instr, str(sam_scan)), OutputWorkspace=sam_incident_wksp)
 
             fit_type = sample['InelasticCorrection']['FitSpectrumWith']
@@ -1345,24 +1345,25 @@ if __name__ == "__main__":
     Rebin(InputWorkspace=sam_corrected,
           OutputWorkspace=sam_corrected,
           Params="350.0,-0.0001,26233.0")
-    xmin = "449.0,719.0,705.0,1137.0,1246.0,350.0"
-    xmax = "19492.0,19521.0,21992.0,18920.0,15555.0,26233.0"
-    CropWorkspaceRagged(InputWorkspace=sam_corrected,
-                        OutputWorkspace=sam_corrected,
-                        Xmin=xmin,
-                        Xmax=xmax )
-    ResampleX(InputWorkspace=sam_corrected,
-              OutputWorkspace=sam_corrected,
-              NumberBins=3000,
-              LogBinning=True)
+    xmin = "449.0,1000.0,1900.0,3000.0,4100.0"
+    xmax = "10000.0,10000.0,10000.0,10000.0,11000.0"
+    #CropWorkspaceRagged(InputWorkspace=sam_corrected,
+    #                    OutputWorkspace=sam_corrected,
+    #                    Xmin=xmin,
+    #                    Xmax=xmax)
+    SaveNexus(InputWorkspace=sam_corrected, Filename=r'C:\ts_output\sam_corrected.nxs')
+    #ResampleX(InputWorkspace=sam_corrected,
+    #          OutputWorkspace=sam_corrected,
+    #          NumberBins=3000,
+    #          LogBinning=True)
 
-    SaveGSS(InputWorkspace=sam_corrected, 
-            Filename=os.path.join(OutputDir,title+".gsa"), 
-            SplitFiles=False, 
-            Append=False,
-            MultiplyByBinWidth=True, 
-            Format="SLOG", 
-            ExtendedHeader=True)
+    #SaveGSS(InputWorkspace=sam_corrected,
+    #        Filename=os.path.join(OutputDir, title + ".gsa"),
+    #        SplitFiles=False,
+    #        Append=False,
+    #        MultiplyByBinWidth=True,
+    #        Format="SLOG",
+    #        ExtendedHeader=True)
     # process the run
     '''
     SNSPowderReduction(
