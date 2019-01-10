@@ -5,7 +5,7 @@ from mantid import mtd
 from mantid.simpleapi import \
     CalculateEfficiencyCorrection, ConvertUnits, ConvertToPointData, \
     CreateWorkspace, Divide, LoadNexusMonitors, LoadAscii, Multiply, \
-    Rebin, ResampleX, SaveAscii, SplineSmoothing
+    Rebin, SaveAscii, SplineSmoothing
 from scipy import signal, ndimage, interpolate, optimize
 import matplotlib.pyplot as plt
 
@@ -112,59 +112,6 @@ def plotIncidentSpectrum(x, y, x_fit, fit, fit_prime, title=None):
     axes.set_ylim([-12, 6])
     plt.show()
     return
-
-
-def GetIncidentSpectrumFromMonitor(
-        Filename,
-        OutputWorkspace="IncidentWorkspace",
-        IncidentIndex=0,
-        TransmissionIndex=1,
-        Binning=".1,6000,2.9",
-        BinType="ResampleX"):
-
-    # -------------------------------------------------
-    # Joerg's read_bm.pro code
-
-    # Loop workspaces to get each incident spectrum
-    monitor = 'monitor'
-    LoadNexusMonitors(Filename=Filename, OutputWorkspace=monitor)
-    ConvertUnits(InputWorkspace=monitor, OutputWorkspace=monitor,
-                 Target='Wavelength', EMode='Elastic')
-    lambdaMin, lambdaBinning, lambdaMax = [float(x) for x in Binning.split(',')]
-    for x in [lambdaMin, lambdaBinning, lambdaMax]:
-        print(x, type(x))
-    if BinType == 'ResampleX':
-        ResampleX(InputWorkspace=monitor,
-                  OutputWorkspace=monitor,
-                  XMin=[lambdaMin],  # TODO change ResampleX
-                  XMax=[lambdaMax],
-                  NumberBins=abs(int(lambdaBinning)),
-                  LogBinning=(int(lambdaBinning) < 0),
-                  PreserveEvents=True)
-    elif BinType == 'Rebin':
-        Rebin(InputWorkspace=monitor,
-              OutputWorkspace=monitor,
-              Params=[lambdaMin, lambdaBinning, lambdaMax],
-              PreserveEvents=True)
-    ConvertToPointData(InputWorkspace=monitor, OutputWorkspace=monitor)
-
-    lam = mtd[monitor].readX(IncidentIndex)    # wavelength in A
-    bm = mtd[monitor].readY(IncidentIndex)     # neutron counts / microsecond
-    p = 0.000794807                       # Pressure (empirically adjusted to match eff.)
-    thickness = .1                        # 1 mm = .1 cm
-    abs_xs_3He = 5333.0                   # barns for lambda == 1.798 A
-    p_to_rho = 2.43e-5                    # pressure to rho (atoms/angstroms^3)
-    # p is set to give efficiency of 1.03 10^-5 at 1.8 A
-    e0 = abs_xs_3He * lam / 1.798 * p_to_rho * p * thickness
-    print('Efficiency:', 1. - np.exp(-e0))
-    bmeff = bm / (1. - np.exp(-e0))      # neutron counts / microsecond
-    print(bmeff)
-    # bmeff = bmeff / constants.micro      # neutron counts / second
-
-    CreateWorkspace(DataX=lam, DataY=bmeff,
-                    OutputWorkspace=OutputWorkspace, UnitX='Wavelength')
-    mtd[OutputWorkspace].setYUnit('Counts')
-    return mtd[OutputWorkspace]
 
 
 def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
