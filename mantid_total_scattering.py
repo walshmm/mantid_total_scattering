@@ -392,21 +392,26 @@ def main(config=None):
 
     print(alignAndFocusArgs)
     # Setup grouping
+    input_grp_wksp = "wksp_input_group"
     output_grouping = False
-    grp_wksp = "wksp_output_group"
+    output_grp_wksp = "wksp_output_group"
 
     if grouping:
         if 'Initial' in grouping:
-            alignAndFocusArgs['GroupFilename'] = grouping['Initial']
+            LoadDetectorsGroupingFile(InputFile=grouping['Initial'],
+                                      OutputWorkspace=input_grp_wksp)
+            alignAndFocusArgs['GroupingWorkspace'] = input_grp_wksp
+
         if 'Output' in grouping:
             output_grouping = True
             LoadDetectorsGroupingFile(InputFile=grouping['Output'],
-                                      OutputWorkspace=grp_wksp)
+                                      OutputWorkspace=output_grp_wksp)
+
     # If no output grouping specified, create it with Calibration Grouping
     if not output_grouping:
         LoadDiffCal(alignAndFocusArgs['CalFilename'],
                     InstrumentName=instr,
-                    WorkspaceName=grp_wksp.replace('_group', ''),
+                    WorkspaceName=output_grp_wksp.replace('_group', ''),
                     MakeGroupingWorkspace=True,
                     MakeCalWorkspace=False,
                     MakeMaskWorkspace=False)
@@ -415,8 +420,8 @@ def main(config=None):
     if not grouping:
         CreateGroupingWorkspace(InstrumentName=instr,
                                 GroupDetectorsBy='bank',
-                                OutputWorkspace=grp_wksp)
-        alignAndFocusArgs['GroupingWorkspace'] = grp_wksp
+                                OutputWorkspace=output_grp_wksp)
+        alignAndFocusArgs['GroupingWorkspace'] = output_grp_wksp
 
     # TODO take out the RecalculatePCharge in the future once tested
     # Load Sample
@@ -431,14 +436,11 @@ def main(config=None):
         sam_mass_density,
         **alignAndFocusArgs)
     sample_title = "sample_and_container"
-    print(os.path.join(OutputDir, sample_title + ".dat"))
-    print("HERE:", mtd[sam_wksp].getNumberHistograms())
-    print(grp_wksp)
     save_banks(InputWorkspace=sam_wksp,
                Filename=nexus_filename,
                Title=sample_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     sam_molecular_mass = mtd[sam_wksp].sample(
@@ -458,7 +460,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=container,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # Load Sample Container Background
@@ -475,7 +477,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title=container_bg,
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
     # Load Vanadium
@@ -496,7 +498,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=vanadium_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     van_molecular_mass = mtd[van_wksp].sample(
@@ -523,7 +525,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title=vanadium_bg_title,
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
     # Load Instrument Characterizations
@@ -578,19 +580,19 @@ def main(config=None):
                Filename=nexus_filename,
                Title=container_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace=van_wksp,
                Filename=nexus_filename,
                Title=vanadium_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace=sam_wksp,
                Filename=nexus_filename,
                Title=sample_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # STEP 2.0: Prepare vanadium as normalization calibrant
@@ -636,13 +638,13 @@ def main(config=None):
                Filename=nexus_filename,
                Title=vanadium_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace=van_corrected,
                Filename=nexus_filename,
                Title=vanadium_title + "_with_peaks",
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # TODO subtract self-scattering of vanadium (According to Eq. 7 of Howe,
@@ -668,7 +670,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=vanadium_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     ConvertUnits(InputWorkspace=van_corrected,
@@ -690,7 +692,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=vanadium_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # Inelastic correction
@@ -740,7 +742,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title="vanadium_placzek",
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
         # Rebin in Wavelength
@@ -783,7 +785,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title=vanadium_title,
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
     ConvertUnits(InputWorkspace=van_corrected,
@@ -823,13 +825,13 @@ def main(config=None):
                Filename=nexus_filename,
                Title=sample_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace=sam_raw,
                Filename=nexus_filename,
                Title="sample_normalized",
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     for name in [container, van_corrected]:
@@ -899,13 +901,13 @@ def main(config=None):
                Filename=nexus_filename,
                Title=container_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace=container_raw,
                Filename=nexus_filename,
                Title="container_normalized",
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # if container_bg is not None:
@@ -914,7 +916,7 @@ def main(config=None):
     #               Filename=nexus_filename,
     #               Title=container_bg_title,
     #               OutputDir=OutputDir,
-    #               GroupingWorkspace=grp_wksp,
+    #               GroupingWorkspace=output_grp_wksp,
     #               Binning=binning)
 
     # if van_bg is not None:
@@ -923,7 +925,7 @@ def main(config=None):
     #               Filename=nexus_filename,
     #               Title=vanadium_bg_title,
     #               OutputDir=OutputDir,
-    #               GroupingWorkspace=grp_wksp,
+    #               GroupingWorkspace=output_grp_wksp,
     #               Binning=binning)
 
     # STEP 3 & 4: Subtract multiple scattering and apply absorption correction
@@ -968,7 +970,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title=sample_title,
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
     else:
         CloneWorkspace(InputWorkspace=sam_wksp, OutputWorkspace=sam_corrected)
@@ -983,7 +985,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=sample_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # STEP 6: Divide by total scattering length squared = total scattering
@@ -998,7 +1000,7 @@ def main(config=None):
                Filename=nexus_filename,
                Title=sample_title,
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # STEP 7: Inelastic correction
@@ -1050,7 +1052,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title="sample_placzek",
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
         # Save after rebin in Q
@@ -1075,7 +1077,7 @@ def main(config=None):
                    Filename=nexus_filename,
                    Title=sample_title,
                    OutputDir=OutputDir,
-                   GroupingWorkspace=grp_wksp,
+                   GroupingWorkspace=output_grp_wksp,
                    Binning=binning)
 
     # STEP 7: Output spectrum
@@ -1112,13 +1114,13 @@ def main(config=None):
                Filename=nexus_filename,
                Title="FQ_banks",
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
     save_banks(InputWorkspace="SQ_banks_ws",
                Filename=nexus_filename,
                Title="SQ_banks",
                OutputDir=OutputDir,
-               GroupingWorkspace=grp_wksp,
+               GroupingWorkspace=output_grp_wksp,
                Binning=binning)
 
     # STOP HERE FOR NOW
