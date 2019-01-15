@@ -154,9 +154,6 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
         xlo, binsize, xhi = params
         x = np.arange(xlo, xhi, binsize)
 
-    for i, j in zip(incident_ws.readX(incident_index)[:5], incident_ws.readY(incident_index)[:5]):
-        print('x:', i, 'y:', j)
-    print("-" * 35)
     Rebin(
         incident_ws,
         OutputWorkspace='fit',
@@ -164,10 +161,6 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
         PreserveEvents=True)
     x_fit = np.array(mtd['fit'].readX(incident_index))
     y_fit = np.array(mtd['fit'].readY(incident_index))
-
-    for i, j in zip(x_fit[:5], y_fit[:5]):
-        print('x:', i, 'y:', j)
-    print("-" * 35)
 
     if len(x_fit) != len(y_fit):
         x_fit = x_fit[:-1]
@@ -491,9 +484,6 @@ def runFitIncidentSpectrumTest(plot=False):
     eff_ws = 'efficiency'
     savefile = incident_spectrums['Ambient 300K polyethylene']['filename']
     LoadAscii(Filename=savefile, OutputWorkspace=incident_ws, Unit='Wavelength')
-    ConvertToHistogram(InputWorkspace=incident_ws,
-                       OutputWorkspace=incident_ws)
-    ConvertToDistribution(Workspace=incident_ws)
     CalculateEfficiencyCorrection(InputWorkspace=incident_ws,
                                   Alpha=0.693,
                                   OutputWorkspace=eff_ws)
@@ -502,11 +492,9 @@ def runFitIncidentSpectrumTest(plot=False):
     Multiply(LHSWorkspace=incident_ws,
              RHSWorkspace=eff_ws,
              OutputWorkspace=incident_ws)
-    ConvertToHistogram(InputWorkspace=incident_ws,
-                       OutputWorkspace=incident_ws)
-    ConvertToDistribution(Workspace=incident_ws)
+    mtd[incident_ws].setDistribution(True)
 
-    incident_fit = 'incident_fit'
+    incident_fit_prefix = 'incident_fit'
     fit_type_opts = ['CubicSpline',
                      'HowellsFunction',
                      'GaussConvCubicSpline',
@@ -520,6 +508,8 @@ def runFitIncidentSpectrumTest(plot=False):
         axis = None
         if plot:
             axis = ax[0]
+
+        incident_fit = incident_fit_prefix + "_" + fit_type
         FitIncidentSpectrum(InputWorkspace=incident_ws,
                             OutputWorkspace=incident_fit,
                             FitSpectrumWith=fit_type,
@@ -602,10 +592,10 @@ def runFitNomadIncidentSpectrumTest(plot=False):
 
 
 if '__main__' == __name__:
-    howellsTestFlag = False
-    nomadTestFlag = True
-    fitIncidentSpectrumFlag = False
-    fitNomadIncidentSpectrumFlag = True
+    howellsTestFlag = True
+    nomadTestFlag = False
+    fitIncidentSpectrumFlag = True
+    fitNomadIncidentSpectrumFlag = False
     plotFlag = True
 
     # Howells incident spectrum for testing
