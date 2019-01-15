@@ -154,6 +154,9 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
         xlo, binsize, xhi = params
         x = np.arange(xlo, xhi, binsize)
 
+    for i, j in zip(incident_ws.readX(incident_index)[:5], incident_ws.readY(incident_index)[:5]):
+        print('x:', i, 'y:', j)
+    print("-" * 35)
     Rebin(
         incident_ws,
         OutputWorkspace='fit',
@@ -161,6 +164,10 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
         PreserveEvents=True)
     x_fit = np.array(mtd['fit'].readX(incident_index))
     y_fit = np.array(mtd['fit'].readY(incident_index))
+
+    for i, j in zip(x_fit[:5], y_fit[:5]):
+        print('x:', i, 'y:', j)
+    print("-" * 35)
 
     if len(x_fit) != len(y_fit):
         x_fit = x_fit[:-1]
@@ -192,7 +199,7 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
             #    title='HowellsFunction')
 
     elif FitSpectrumWith == 'GaussConvCubicSpline':
-        fit, fit_prime = fitCubicSplineWithGaussConv(x_fit, y_fit, x, sigma=1)
+        fit, fit_prime = fitCubicSplineWithGaussConv(x_fit, y_fit, x, sigma=0.5)
         if PlotDiagnostics:
             axis.plot(x, fit, '--', label='Cubic Spline w/ Gaussian Kernel Convolution ')
             # plotIncidentSpectrum(axis, x_fit, y_fit, x, fit, fit_prime,
@@ -259,90 +266,6 @@ def getIncidentSpectrumParameters():
         'filename': 'mildner_moderator_cold_polyethlyene_77K'
     }
     return incident_spectrums
-
-
-def runNomadTest(plot=False):
-    config = dict()
-    config['Instrument'] = "NOM"
-    config['Sample'] = {"Runs": "33943",
-                        "InelasticCorrection": {"Type": "Placzek",
-                                                "Order": "1st",
-                                                "Self": True,
-                                                "Interference": False,
-                                                "FitSpectrumWith": "GaussConvCubicSpline",
-                                                "LambdaBinningForFit": "0.16,0.04,2.8",
-                                                "LambdaBinningForCalc": "0.1,0.0001,3.0"}
-                        }
-    binning = "0.0212406,0.00022,3.39828"  # matches read_bm.pro for lambda[100:15999]
-    sample = config['Sample']
-
-    # Get incident spectrum test for NOMAD
-    runs = sample["Runs"].split(',')
-    runs = ["%s_%s" % (config["Instrument"], run) for run in runs]
-
-    monitor = 'monitor'
-    incident_ws = 'incident_ws'
-
-    if plot:
-        fig, (ax_bm, ax_bmeff) = plt.subplots(2, subplot_kw={'projection': 'mantid'}, sharex=True)
-
-    # Beam Monitor
-    LoadNexusMonitors(Filename=runs[0], OutputWorkspace=monitor)
-    ConvertUnits(InputWorkspace=monitor, OutputWorkspace=monitor,
-                 Target='Wavelength', EMode='Elastic')
-
-    Rebin(InputWorkspace=monitor,
-          OutputWorkspace=monitor,
-          Params=binning,
-          PreserveEvents=False)
-
-    if plot:
-        ax_bm.plot(mtd[monitor], '-', wkspIndex=0, label='Monitor', distribution=True)
-        ax_bm.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
-
-    ConvertToPointData(InputWorkspace=monitor, OutputWorkspace=monitor)
-
-    # Use sample info
-    CalculateEfficiencyCorrection(InputWorkspace=monitor,
-                                  ChemicalFormula="(He3)",
-                                  DensityType="Number Density",
-                                  Density=1.93138101e-08,
-                                  Thickness=.1,
-                                  OutputWorkspace=incident_ws)
-
-    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
-
-    if plot:
-        ax_bmeff.plot(mtd[incident_ws], '-', wkspIndex=0, label='Incident Spectrum (density)',
-                      distribution=True)
-
-    # Use measured efficiency
-    CalculateEfficiencyCorrection(InputWorkspace=monitor,
-                                  ChemicalFormula="(He3)",
-                                  MeasuredEfficiency=1.03e-5,
-                                  OutputWorkspace=incident_ws)
-
-    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
-
-    if plot:
-        ax_bmeff.plot(mtd[incident_ws], 'o', wkspIndex=0, label='Incident Spectrum (efficiency)',
-                      distribution=True)
-
-    # Use alpha
-    CalculateEfficiencyCorrection(InputWorkspace=monitor,
-                                  Alpha=5.72861786781e-06,
-                                  OutputWorkspace=incident_ws)
-
-    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
-
-    if plot:
-        ax_bmeff.plot(mtd[incident_ws], '--', wkspIndex=0, label='Incident Spectrum (alpha)',
-                      distribution=True)
-
-        # Plot all
-        ax_bm.legend()
-        ax_bmeff.legend()
-        plt.show()
 
 
 def runIncidentSpectrumTest(plot=False):
@@ -465,6 +388,102 @@ def runIncidentSpectrumTest(plot=False):
         plt.show()
 
 
+def runNomadTest(plot=False):
+    config = dict()
+    config['Instrument'] = "NOM"
+    config['Sample'] = {"Runs": "33943",
+                        "InelasticCorrection": {"Type": "Placzek",
+                                                "Order": "1st",
+                                                "Self": True,
+                                                "Interference": False,
+                                                "FitSpectrumWith": "GaussConvCubicSpline",
+                                                "LambdaBinningForFit": "0.16,0.04,2.8",
+                                                "LambdaBinningForCalc": "0.1,0.0001,3.0"}
+                        }
+    binning = "0.0212406,0.00022,3.39828"  # matches read_bm.pro for lambda[100:15999]
+    sample = config['Sample']
+
+    # Get incident spectrum test for NOMAD
+    runs = sample["Runs"].split(',')
+    runs = ["%s_%s" % (config["Instrument"], run) for run in runs]
+
+    monitor = 'monitor'
+    incident_ws = 'incident_ws'
+
+    if plot:
+        fig, (ax_bm, ax_bmeff) = plt.subplots(2, subplot_kw={'projection': 'mantid'}, sharex=True)
+
+    # Beam Monitor
+    LoadNexusMonitors(Filename=runs[0], OutputWorkspace=monitor)
+    ConvertUnits(InputWorkspace=monitor, OutputWorkspace=monitor,
+                 Target='Wavelength', EMode='Elastic')
+
+    Rebin(InputWorkspace=monitor,
+          OutputWorkspace=monitor,
+          Params=binning,
+          PreserveEvents=False)
+
+    ConvertToPointData(InputWorkspace=monitor, OutputWorkspace=monitor)
+
+    if plot:
+        ax_bm.plot(mtd[monitor], '-', wkspIndex=0, label='Monitor')
+        ax_bm.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+
+    # Use sample info
+    CalculateEfficiencyCorrection(WavelengthRange=binning,
+                                  ChemicalFormula="(He3)",
+                                  DensityType="Number Density",
+                                  Density=1.93138101e-08,
+                                  Thickness=.1,
+                                  OutputWorkspace=incident_ws)
+
+    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
+    mtd[incident_ws].setDistribution(True)
+
+    if plot:
+        ax_bmeff.plot(mtd[incident_ws], '-', wkspIndex=0, label='Incident Spectrum (density)')
+
+    # Use measured efficiency
+    CalculateEfficiencyCorrection(WavelengthRange=binning,
+                                  ChemicalFormula="(He3)",
+                                  MeasuredEfficiency=1.03e-5,
+                                  OutputWorkspace=incident_ws)
+
+    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
+    mtd[incident_ws].setDistribution(True)
+
+    if plot:
+        ax_bmeff.plot(mtd[incident_ws], 'o', wkspIndex=0, label='Incident Spectrum (efficiency)')
+
+    # Use alpha
+    CalculateEfficiencyCorrection(WavelengthRange=binning,
+                                  Alpha=5.72861786781e-06,
+                                  OutputWorkspace=incident_ws)
+
+    Multiply(LHSWorkspace=monitor, RHSWorkspace=incident_ws, OutputWorkspace=incident_ws)
+    mtd[incident_ws].setDistribution(True)
+
+    if plot:
+        ax_bmeff.plot(mtd[incident_ws], '--', wkspIndex=0, label='Incident Spectrum (alpha)')
+
+    '''
+    # Rebin workspace
+    Rebin(InputWorkspace=incident_ws,
+          OutputWorkspace=incident_ws,
+          Params="0.2,0.01,4.0",
+          PreserveEvents=False)
+
+    if plot:
+        ax_bmeff.plot(mtd[incident_ws], '--', wkspIndex=0, label='Incident Spectrum (alpha + rebin')
+    '''
+
+    # Plot all
+    if plot:
+        ax_bm.legend()
+        ax_bmeff.legend()
+        plt.show()
+
+
 def runFitIncidentSpectrumTest(plot=False):
     # Fit incident spectrum
     incident_spectrums = getIncidentSpectrumParameters()
@@ -551,6 +570,7 @@ def runFitNomadIncidentSpectrumTest(plot=False):
         FitIncidentSpectrum(InputWorkspace=incident_ws,
                             OutputWorkspace=incident_fit,
                             FitSpectrumWith=fit_type,
+                            BinningForFit="0.02,0.01,3.0",
                             PlotDiagnostics=plot,
                             axis=axis)
         # BinningForFit="0.16,0.04,2.8",
@@ -571,7 +591,7 @@ def runFitNomadIncidentSpectrumTest(plot=False):
 
         if plot:
             ax[i + 1].plot(mtd[incident_ws], '-', wkspIndex=0, label="Incident")
-            ax[i + 1].plot(mtd[incident_ws_rebin], '-', wkspIndex=0, label="Incident Rebinned")
+            ax[i + 1].plot(mtd[incident_ws_rebin], 'x', wkspIndex=0, label="Incident Rebinned")
             ax[i + 1].plot(mtd[incident_fit], '-', wkspIndex=0, label=fit_type)
             ax[i + 1].legend()
             ax[i + 1].set_ylim(0.0, 2e9)
@@ -582,23 +602,26 @@ def runFitNomadIncidentSpectrumTest(plot=False):
 
 
 if '__main__' == __name__:
-    nomadTestFlag = True
     howellsTestFlag = False
+    nomadTestFlag = True
     fitIncidentSpectrumFlag = False
     fitNomadIncidentSpectrumFlag = True
     plotFlag = True
-
-    if nomadTestFlag:
-        runNomadTest(plot=plotFlag)
 
     # Howells incident spectrum for testing
     if howellsTestFlag:
         runIncidentSpectrumTest(plot=plotFlag)
 
+    # Nomad incident spectrum from monitor
+    if nomadTestFlag:
+        runNomadTest(plot=plotFlag)
+
+    # Fitting the Howells spectrums
     if fitIncidentSpectrumFlag:
         runIncidentSpectrumTest()
         runFitIncidentSpectrumTest(plot=plotFlag)
 
+    # Fitting the Nomad monitor
     if fitNomadIncidentSpectrumFlag:
         runNomadTest()
         runFitNomadIncidentSpectrumTest(plot=plotFlag)
