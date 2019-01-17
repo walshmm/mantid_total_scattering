@@ -5,6 +5,7 @@ import scipy
 from mantid import mtd
 from mantid.simpleapi import CreateWorkspace, SetSampleMaterial
 
+from inelastic.incident_spectrum import fitTypeOpts
 from inelastic.incident_spectrum import runIncidentSpectrumTest, runFitIncidentSpectrumTest
 from inelastic.incident_spectrum import runNomadTest, runFitNomadIncidentSpectrumTest
 
@@ -58,7 +59,7 @@ def GetSampleSpeciesInfo(InputWorkspace):
     material = mtd[InputWorkspace].sample().getMaterial().chemicalFormula()
     atom_species = collections.OrderedDict()
     for atom, stoich in zip(material[0], material[1]):
-        print(atom.neutron()['tot_scatt_length'])
+        # print(atom.neutron()['tot_scatt_length'])
         b_sqrd_bar = mtd[InputWorkspace].sample().getMaterial().totalScatterXSection(
         ) / (4. * np.pi)  # <b^2> == sigma_s / 4*pi (in barns)
         atom_species[atom.symbol] = {'mass': atom.mass,
@@ -121,7 +122,6 @@ def CalculatePlaczekSelfScattering(
 
     phi_1 = x_lambda * incident_prime / incident
 
-    # Set default Detector Law
     if Detector is None:
         Detector = {'Alpha': None,
                     'LambdaD': 1.44,
@@ -181,6 +181,7 @@ def CalculatePlaczekSelfScattering(
             placzek_correction,
             inelastic_placzek_self_correction)
 
+    # Set default Detector Law
     if ParentWorkspace:
         CreateWorkspace(
             DataX=x_lambdas,
@@ -198,10 +199,72 @@ def CalculatePlaczekSelfScattering(
             UnitX='Wavelength',
             NSpec=len(Polar),
             Distribution=True)
-    print("Placzek YUnit:", mtd[OutputWorkspace].YUnit())
-    print("Placzek distribution:", mtd[OutputWorkspace].isDistribution())
-
     return mtd[OutputWorkspace]
+
+
+def runPlaczekTest(axis=None, axis_indices=None, plot=None, show_plot=None,
+                   formula="N2", L1=None, banks=None):
+    # Parameters for R=L2/(L1+L2)=0.1 and thetas to reproduce Spencer Howells's paper.
+    L2 = [x['L2'] for bank, x in banks.items()]
+    Polar = [x['theta'] for bank, x in banks.items()]
+    bank_colors = [x['color'] for bank, x in banks.items()]
+
+    # Plot setup
+    if plot:
+        if axis is None:
+            fig, axis = plt.subplots(len(banks), subplot_kw={'projection': 'mantid'},
+                                     sharex=True, sharey=True)
+    if axis_indices is None:
+        axis_indices = range(len(banks))
+
+    for idx, fit_type in zip(axis_indices, fitTypeOpts):
+        incident_fit = "incident_fit_" + fit_type
+        placzek = "output_placzek_wksp_" + fit_type
+
+        SetSampleMaterial(incident_fit, ChemicalFormula=formula)
+        # CalculateElasticSelfScattering(InputWorkspace=incident_fit)
+        # atom_species = GetSampleSpeciesInfo(incident_fit)
+
+        CalculatePlaczekSelfScattering(IncidentWorkspace=incident_fit,
+                                       OutputWorkspace=placzek,
+                                       L1=L1, L2=L2, Polar=Polar)
+
+        # TODO: Need to re-write so that `CreateSampleWorkspace` is used
+        # with the L1, L2s, and thetas set by the instrument geometry
+        # Then we can just use `ConvertUnits` here
+
+        if plot:
+            nbanks = range(mtd[placzek].getNumberHistograms())
+            for bank, theta in zip(nbanks, Polar):
+                x_lambda = mtd[placzek].readX(bank)
+                q = ConvertLambdaToQ(x_lambda, theta)
+                per_bank_placzek = mtd[placzek].readY(bank)
+                label = 'Bank: %d at Theta %d Fit %s' % (bank, int(theta), fit_type)
+                axis[idx].plot(q, 1. + per_bank_placzek, bank_colors[bank] + '-', label=label)
+                axis[idx].set_xlabel('Q (Angstroms^-1')
+                axis[idx].legend(fontsize=8)
+
+    # ax[0].set_title('Placzek vs. Q for ' + chemical_formula)
+    # ax[-1].set_ylabel('1 - P(Q)')
+    if show_plot:
+        plt.show()
+
+
+def setup(plotFlag):
+    # Setup plot axes
+    ax = None
+    fit_idx = None
+    placzek_idx = None
+    if plotFlag:
+        fig, ax = plt.subplots(5, 2, subplot_kw={'projection': 'mantid'})
+        fit_idx = [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]
+        placzek_idx = [(1, 1), (2, 1), (3, 1), (4, 1)]
+
+    # Setup key-word args
+    kwargs = {'axis': ax,
+              'plot': plotFlag}
+    return kwargs, fit_idx, placzek_idx
+
 
 # StartPlaczek calculations
 
@@ -209,144 +272,44 @@ def CalculatePlaczekSelfScattering(
 if '__main__' == __name__:
 
     incidentSpectrumPlaczekFlag = True
-    nomadPlaczekFlag = False
-    oldTestFlag = False
-    plot = True
+    nomadPlaczekFlag = True
+    plotFlag = True
 
+    # Run tests
     if incidentSpectrumPlaczekFlag:
+        # Setup spectrum and fitting
+        kwargs, fit_idx, placzek_idx = setup(plotFlag)
         runIncidentSpectrumTest()
-        runFitIncidentSpectrumTest()
+        runFitIncidentSpectrumTest(axis_indices=fit_idx, **kwargs)
 
-        fit_type_opts = ['CubicSpline',
-                         'HowellsFunction',
-                         'GaussConvCubicSpline',
-                         'CubicSplineViaMantid']
-
-        # Parameters for NOMAD detectors by bank
-        chemical_formula = "N2"
-        L1 = 19.5
+        # Define instrument parameters
         banks = collections.OrderedDict()
-        banks[0] = {'L2': 2.01, 'theta': 15.10, 'color': 'k'}
-        banks[1] = {'L2': 1.68, 'theta': 31.00, 'color': 'r'}
-        banks[2] = {'L2': 1.14, 'theta': 65.00, 'color': 'b'}
-        banks[3] = {'L2': 1.11, 'theta': 120.40, 'color': 'g'}
-        banks[4] = {'L2': 0.79, 'theta': 150.10, 'color': 'y'}
-        banks[5] = {'L2': 2.06, 'theta': 8.60, 'color': 'c'}
+        banks[0] = {'L2': 1.0, 'theta': 30.0,  'color': 'k'}
+        banks[1] = {'L2': 1.0, 'theta': 60.0,  'color': 'r'}
+        banks[2] = {'L2': 1.0, 'theta': 90.0,  'color': 'b'}
+        banks[3] = {'L2': 1.0, 'theta': 150.0, 'color': 'g'}
+        kwargs['L1'] = 9.0
+        kwargs['banks'] = banks
 
-        L2 = [x['L2'] for bank, x in banks.items()]
-        Polar = [x['theta'] for bank, x in banks.items()]
-        bank_colors = [x['color'] for bank, x in banks.items()]
-
-        if plot:
-            fig, ax = plt.subplots(len(fit_type_opts),
-                                   subplot_kw={'projection': 'mantid'},
-                                   sharex=True)
-
-        for i, fit_type in enumerate(fit_type_opts):
-
-            incident_fit = "incident_fit_" + fit_type
-            placzek = "output_placzek_wksp_" + fit_type
-
-            SetSampleMaterial(incident_fit, ChemicalFormula=chemical_formula)
-            CalculateElasticSelfScattering(InputWorkspace=incident_fit)
-            atom_species = GetSampleSpeciesInfo(incident_fit)
-
-            CalculatePlaczekSelfScattering(IncidentWorkspace=incident_fit,
-                                           OutputWorkspace=placzek,
-                                           L1=L1, L2=L2, Polar=Polar)
-
-            # TODO: Need to re-write so that `CreateSampleWorkspace` is used
-            # with the L1, L2s, and thetas set by the instrument geometry
-            # Then we can just use `ConvertUnits` here
-
-            if plot:
-                nbanks = range(mtd[placzek].getNumberHistograms())
-                for bank, theta in zip(nbanks, Polar):
-                    x_lambda = mtd[placzek].readX(bank)
-                    q = ConvertLambdaToQ(x_lambda, theta)
-                    per_bank_placzek = mtd[placzek].readY(bank)
-                    label = 'Bank: %d at Theta %d Fit %s' % (bank, int(theta), fit_type)
-                    ax[i].plot(q, 1. + per_bank_placzek, bank_colors[bank] + '-', label=label)
-                    ax[i].set_xlabel('Q (Angstroms^-1')
-                    ax[i].legend()
-
-        ax[0].set_title('Placzek vs. Q for ' + chemical_formula)
-        ax[-1].set_ylabel('1 - P(Q)')
-        if plot:
-            plt.show()
+        # Run placzek correction
+        runPlaczekTest(axis_indices=placzek_idx, show_plot=plotFlag, **kwargs)
 
     if nomadPlaczekFlag:
+        # Setup spectrum and fitting
+        kwargs, fit_idx, placzek_idx = setup(plotFlag)
         runNomadTest()
-        runFitNomadIncidentSpectrumTest()
-
-    if oldTestFlag:
-        runIncidentSpectrumTest()
-        runFitIncidentSpectrumTest()
-
-        fit_type = 'GaussConvCubicSpline'
-        incident_fit = "incident_fit_" + fit_type
-
-        # Set sample info
-        SetSampleMaterial(incident_fit, ChemicalFormula=str("N2"))
-        CalculateElasticSelfScattering(InputWorkspace=incident_fit)
-        atom_species = GetSampleSpeciesInfo(incident_fit)
+        runFitNomadIncidentSpectrumTest(axis_indices=fit_idx, **kwargs)
 
         # Parameters for NOMAD detectors by bank
-        L1 = 19.5
         banks = collections.OrderedDict()
-        banks[0] = {'L2': 2.01, 'theta': 15.10}
-        banks[1] = {'L2': 1.68, 'theta': 31.00}
-        banks[2] = {'L2': 1.14, 'theta': 65.00}
-        banks[3] = {'L2': 1.11, 'theta': 120.40}
-        banks[4] = {'L2': 0.79, 'theta': 150.10}
-        banks[5] = {'L2': 2.06, 'theta': 8.60}
+        banks[0] = {'L2': 2.01, 'theta': 15.10,  'color': 'k'}
+        banks[1] = {'L2': 1.68, 'theta': 31.00,  'color': 'r'}
+        banks[2] = {'L2': 1.14, 'theta': 65.00,  'color': 'b'}
+        banks[3] = {'L2': 1.11, 'theta': 120.40, 'color': 'g'}
+        banks[4] = {'L2': 0.79, 'theta': 150.10, 'color': 'y'}
+        banks[5] = {'L2': 2.06, 'theta': 8.60,   'color': 'c'}
+        kwargs['L1'] = 19.5
+        kwargs['banks'] = banks
 
-        L2 = [x['L2'] for bank, x in banks.items()]
-        Polar = [x['theta'] for bank, x in banks.items()]
-
-        parent = 'parent_ws'
-        placzek = 'placzek_out'
-        # Load(Filename="NOM_33943", OutputWorkspace=parent)
-        parent = None
-        CalculatePlaczekSelfScattering(IncidentWorkspace=incident_fit,
-                                       OutputWorkspace=placzek,
-                                       L1=19.5,
-                                       L2=L2,
-                                       Polar=Polar,
-                                       ParentWorkspace=parent)
-
-        # print(mtd[parent].getNumberHistograms())
-        # print(mtd[placzek].getNumberHistograms())
-        # ConvertUnits(InputWorkspace=placzek,
-        #         OutputWorkspace=placzek,
-        #         Target='MomentumTransfer',
-        #         EMode='Elastic')
-
-        plot = True
-        if plot:
-            import matplotlib.pyplot as plt
-            bank_colors = ['k', 'r', 'b', 'g', 'y', 'c']
-            nbanks = range(mtd[placzek].getNumberHistograms())
-            for bank, theta in zip(nbanks, Polar):
-                x_lambda = mtd[placzek].readX(bank)
-                q = ConvertLambdaToQ(x_lambda, theta)
-                per_bank_placzek = mtd[placzek].readY(bank)
-                label = 'Bank: %d at Theta %d' % (bank, int(theta))
-                plt.plot(
-                    q,
-                    1. +
-                    per_bank_placzek,
-                    bank_colors[bank] +
-                    '-',
-                    label=label)
-
-            material = ' '.join([symbol +
-                                 str(int(props['stoich'])) +
-                                 ' ' for symbol, props in atom_species.items()])
-            plt.title('Placzek vs. Q for ' + material)
-            plt.xlabel('Q (Angstroms^-1')
-            plt.ylabel('1 - P(Q)')
-            axes = plt.gca()
-            # axes.set_ylim([0.96, 1.0])
-            plt.legend()
-            plt.show()
+        # Run placzek correction
+        runPlaczekTest(axis_indices=placzek_idx, show_plot=plotFlag, **kwargs)
