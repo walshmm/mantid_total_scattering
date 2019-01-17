@@ -137,6 +137,7 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
                         BinningForFit="0.15,0.05,3.2",
                         BinningForCalc=None,
                         PlotDiagnostics=False,
+                        PlotIncident=False,
                         axis=None):
 
     if PlotDiagnostics and not axis:
@@ -171,7 +172,7 @@ def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
     if len(x_fit) != len(y_fit):
         x_fit = x_fit[:-1]
 
-    if PlotDiagnostics:
+    if PlotDiagnostics and PlotIncident:
         axis.plot(x_fit, y_fit, 'bo', label='Incident')
 
     if FitSpectrumWith == 'CubicSpline':
@@ -503,9 +504,13 @@ def runFitIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, show_pl
     incident_fit_prefix = 'incident_fit'
     if plot:
         if axis is None:
-            fig, ax = plt.subplots(5, subplot_kw={'projection': 'mantid'}, sharex=True, sharey=True)
+            fig, axis = plt.subplots(5, subplot_kw={'projection': 'mantid'},
+                                     sharex=True, sharey=True)
     if axis_indices is None:
-        axis_indices = range(len(axis))
+        if axis is None:
+            axis_indices = range(5)
+        else:
+            axis_indices = range(len(axis))
 
     rebin = True
     if plot:
@@ -513,16 +518,19 @@ def runFitIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, show_pl
     else:
         first_axis = None
 
+    plotIncident = True
     for idx, fit_type in zip(axis_indices[1:], fitTypeOpts):
 
         incident_fit = incident_fit_prefix + "_" + fit_type
         FitIncidentSpectrum(InputWorkspace=incident_ws,
                             OutputWorkspace=incident_fit,
                             FitSpectrumWith=fit_type,
+                            BinningForFit="0.1,0.01,3.0",
+                            BinningForCalc="0.1,0.0001,3.0",
                             PlotDiagnostics=plot,
+                            PlotIncident=plotIncident,
                             axis=first_axis)
-        # BinningForFit="0.16,0.04,2.8",
-        # BinningForCalc="0.1,0.0001,3.0",
+        plotIncident = False
 
         incident_ws_rebin = "incident_ws_rebin"
         if rebin:
@@ -542,6 +550,7 @@ def runFitIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, show_pl
             axis[idx].plot(mtd[incident_ws_rebin], '-', wkspIndex=0, label="Incident Rebinned")
             axis[idx].plot(mtd[incident_fit], '-', wkspIndex=0, label=fit_type)
             axis[idx].legend()
+            axis[axis_indices[0]].legend()
 
     if show_plot:
         plt.show()
@@ -556,7 +565,10 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
                 5, subplot_kw={
                     'projection': 'mantid'}, sharex=True, sharey=True)
     if axis_indices is None:
-        axis_indices = range(len(axis))
+        if axis is None:
+            axis_indices = range(5)
+        else:
+            axis_indices = range(len(axis))
 
     rebin = True
     if plot:
@@ -564,6 +576,7 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
     else:
         first_axis = None
 
+    plotIncident = True
     for idx, fit_type in zip(axis_indices[1:], fitTypeOpts):
 
         FitIncidentSpectrum(InputWorkspace=incident_ws,
@@ -571,7 +584,9 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
                             FitSpectrumWith=fit_type,
                             BinningForFit="0.02,0.01,3.0",
                             PlotDiagnostics=plot,
+                            PlotIncident=plotIncident,
                             axis=first_axis)
+        plotIncident = False
         # BinningForFit="0.16,0.04,2.8",
         # BinningForCalc="0.1,0.0001,3.0",
 
@@ -593,6 +608,7 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
             axis[idx].plot(mtd[incident_ws_rebin], 'x', wkspIndex=0, label="Incident Rebinned")
             axis[idx].plot(mtd[incident_fit], '-', wkspIndex=0, label=fit_type)
             axis[idx].legend()
+            axis[axis_indices[0]].legend()
             axis[idx].set_ylim(0.0, 2e9)
 
     if show_plot:
@@ -601,9 +617,9 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
 
 if '__main__' == __name__:
     howellsTestFlag = True
-    nomadTestFlag = True
+    nomadTestFlag = False
     fitIncidentSpectrumFlag = True
-    fitNomadIncidentSpectrumFlag = True
+    fitNomadIncidentSpectrumFlag = False
     plotFlag = True
 
     # Howells incident spectrum for testing
@@ -616,12 +632,15 @@ if '__main__' == __name__:
 
     # Fitting the Howells spectrums
     if fitIncidentSpectrumFlag:
-        fig, ax = plt.subplots(5, subplot_kw={'projection': 'mantid'}, sharex=True, sharey=True)
+        fig, ax = plt.subplots(3, 2, subplot_kw={'projection': 'mantid'}, sharex=True, sharey=True)
+        idx = [(0, 0), (1, 0), (1, 1), (2, 0), (2, 1)]
         runIncidentSpectrumTest()
-        runFitIncidentSpectrumTest(axis=ax, plot=plotFlag, show_plot=plotFlag)
+        runFitIncidentSpectrumTest(axis=ax, axis_indices=idx, plot=plotFlag, show_plot=plotFlag)
 
     # Fitting the Nomad monitor
     if fitNomadIncidentSpectrumFlag:
-        fig, ax = plt.subplots(5, subplot_kw={'projection': 'mantid'}, sharex=True, sharey=True)
+        fig, ax = plt.subplots(3, 2, subplot_kw={'projection': 'mantid'}, sharex=True, sharey=True)
+        idx = [(0, 0), (1, 0), (1, 1), (2, 0), (2, 1)]
         runNomadTest()
-        runFitNomadIncidentSpectrumTest(axis=ax, plot=plotFlag, show_plot=plotFlag)
+        runFitNomadIncidentSpectrumTest(axis=ax, axis_indices=idx,
+                                        plot=plotFlag, show_plot=plotFlag)
