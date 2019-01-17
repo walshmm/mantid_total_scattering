@@ -577,18 +577,20 @@ def runFitNomadIncidentSpectrumTest(axis=None, axis_indices=None, plot=False, sh
         first_axis = None
 
     plotIncident = True
+    incident_fit_prefix = 'incident_fit'
     for idx, fit_type in zip(axis_indices[1:], fitTypeOpts):
 
+        incident_fit = incident_fit_prefix + "_" + fit_type
         FitIncidentSpectrum(InputWorkspace=incident_ws,
                             OutputWorkspace=incident_fit,
                             FitSpectrumWith=fit_type,
-                            BinningForFit="0.02,0.01,3.0",
+                            BinningForFit="0.02,0.05,3.0",
+                            BinningForCalc="0.02,0.0001,3.0",
                             PlotDiagnostics=plot,
                             PlotIncident=plotIncident,
                             axis=first_axis)
         plotIncident = False
         # BinningForFit="0.16,0.04,2.8",
-        # BinningForCalc="0.1,0.0001,3.0",
 
         incident_ws_rebin = "incident_ws_rebin"
         if rebin:
