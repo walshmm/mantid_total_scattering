@@ -41,9 +41,9 @@
     "Calibration":{"Filename":"/SNS/NOM/shared/CALIBRATION/2017_1_1B_CAL/NOM_d91621_2017_04_12_shifter.h5"},
     "HighQLinearFitRange" : 0.60,
     "Merging":{"QBinning": [0.0, 0.02, 40.0],
-               "SumBanks": [3],
-               "Characterizations":{"Filename":"/SNS/NOM/shared/CALIBRATION/2017_1_1B_CAL/NOM_char_2017_04_15-pdf.txt"}
+               "SumBanks": [3]
               },
+    "AlignAndFocusArgs" : { "TMin" : 300.0, "TMax" : 16667.0 },
     "CacheDir" : "./tmp",
     "OutputDir" : "./output"
 }

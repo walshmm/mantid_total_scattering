@@ -9,21 +9,39 @@ from scipy.constants import Avogadro
 
 from mantid import mtd
 from mantid.simpleapi import \
-    CreateEmptyTableWorkspace, Load, GenerateEventsFilter, \
-    LoadDetectorsGroupingFile, LoadDiffCal, \
-    CreateGroupingWorkspace, GroupWorkspaces, \
-    PDDetermineCharacterizations, PropertyManagerDataService, \
-    CloneWorkspace, ConvertUnits, SetSample, Rebin, CompressEvents, \
-    Minus, Divide, SetUncertainties, ConvertToHistogram,\
-    ConvertToDistribution, StripVanadiumPeaks, FFTSmooth, \
-    CarpenterSampleCorrection, MayersSampleCorrection, \
-    CropWorkspaceRagged
+    CalculateEfficiencyCorrection, \
+    CarpenterSampleCorrection, \
+    CloneWorkspace, \
+    CompressEvents, \
+    ConvertToDistribution, \
+    ConvertToHistogram, \
+    ConvertToPointData, \
+    ConvertUnits, \
+    CreateEmptyTableWorkspace, \
+    CreateGroupingWorkspace, \
+    CropWorkspaceRagged, \
+    Divide, \
+    FFTSmooth, \
+    GenerateEventsFilter, \
+    GroupWorkspaces, \
+    Load, \
+    LoadDetectorsGroupingFile, \
+    LoadDiffCal, \
+    LoadNexusMonitors, \
+    MayersSampleCorrection, \
+    Minus, \
+    Multiply, \
+    PDDetermineCharacterizations, \
+    PropertyManagerDataService, \
+    Rebin, \
+    SetSample, \
+    SetUncertainties, \
+    StripVanadiumPeaks
 
 from file_handling.load import load
 from file_handling.save import save_banks
-from inelastic.placzek import \
-    GetIncidentSpectrumFromMonitor, FitIncidentSpectrum, \
-    CalculatePlaczekSelfScattering
+from inelastic.incident_spectrum import FitIncidentSpectrum
+from inelastic.placzek import CalculatePlaczekSelfScattering
 
 # Utilities
 
@@ -703,9 +721,32 @@ def main(config=None):
         lambda_binning_fit = van_inelastic_opts['LambdaBinningForFit']
         lambda_binning_calc = van_inelastic_opts['LambdaBinningForCalc']
         print('van_scan:', van_scan)
-        GetIncidentSpectrumFromMonitor(
-            Filename=facility_file_format % (instr, van_scan),
+        # GetIncidentSpectrumFromMonitor(
+        #    Filename=facility_file_format % (instr, van_scan),
+        #    OutputWorkspace=van_incident_wksp)
+
+        monitor_wksp = 'monitor'
+        eff_corr_wksp = 'monitor_efficiency_correction_wksp'
+        LoadNexusMonitors(Filename=facility_file_format % (instr, van_scan[0]),
+                          OutputWorkspace=monitor_wksp)
+        ConvertUnits(InputWorkspace=monitor_wksp, OutputWorkspace=monitor_wksp,
+                     Target='Wavelength', EMode='Elastic')
+        Rebin(InputWorkspace=monitor_wksp,
+              OutputWorkspace=monitor_wksp,
+              Params=lambda_binning_fit,
+              PreserveEvents=False)
+        ConvertToPointData(InputWorkspace=monitor_wksp, OutputWorkspace=monitor_wksp)
+        CalculateEfficiencyCorrection(WavelengthRange=binning,
+                                      ChemicalFormula="(He3)",
+                                      DensityType="Number Density",
+                                      Density=1.93138101e-08,
+                                      Thickness=.1,
+                                      OutputWorkspace=eff_corr_wksp)
+        Multiply(
+            LHSWorkspace=monitor_wksp,
+            RHSWorkspace=eff_corr_wksp,
             OutputWorkspace=van_incident_wksp)
+        mtd[van_incident_wksp].setDistribution(True)
 
         fit_type = van['InelasticCorrection']['FitSpectrumWith']
         FitIncidentSpectrum(InputWorkspace=van_incident_wksp,
@@ -1015,9 +1056,31 @@ def main(config=None):
             sam_inelastic_opts = sample['InelasticCorrection']
             lambda_binning_fit = sam_inelastic_opts['LambdaBinningForFit']
             lambda_binning_calc = sam_inelastic_opts['LambdaBinningForCalc']
-            GetIncidentSpectrumFromMonitor(
-                Filename=facility_file_format % (instr, sam_scan),
+            # GetIncidentSpectrumFromMonitor(
+            #    Filename=facility_file_format % (instr, sam_scan),
+            #    OutputWorkspace=sam_incident_wksp)
+            monitor_wksp = 'monitor'
+            eff_corr_wksp = 'monitor_efficiency_correction_wksp'
+            LoadNexusMonitors(Filename=facility_file_format % (instr, sam_scan[0]),
+                              OutputWorkspace=monitor_wksp)
+            ConvertUnits(InputWorkspace=monitor_wksp, OutputWorkspace=monitor_wksp,
+                         Target='Wavelength', EMode='Elastic')
+            Rebin(InputWorkspace=monitor_wksp,
+                  OutputWorkspace=monitor_wksp,
+                  Params=lambda_binning_fit,
+                  PreserveEvents=False)
+            ConvertToPointData(InputWorkspace=monitor_wksp, OutputWorkspace=monitor_wksp)
+            CalculateEfficiencyCorrection(WavelengthRange=binning,
+                                          ChemicalFormula="(He3)",
+                                          DensityType="Number Density",
+                                          Density=1.93138101e-08,
+                                          Thickness=.1,
+                                          OutputWorkspace=eff_corr_wksp)
+            Multiply(
+                LHSWorkspace=monitor_wksp,
+                RHSWorkspace=eff_corr_wksp,
                 OutputWorkspace=sam_incident_wksp)
+            mtd[sam_incident_wksp].setDistribution(True)
 
             fit_type = sample['InelasticCorrection']['FitSpectrumWith']
             FitIncidentSpectrum(InputWorkspace=sam_incident_wksp,

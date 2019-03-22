@@ -42,10 +42,10 @@
     "HighQLinearFitRange" : 0.60,
     "Merging":{"QBinning": [0.0, 0.02, 40.0],
                "SumBanks": [3],
-               "Characterizations":{"Filename":"/SNS/NOM/shared/CALIBRATION/2017_1_1B_CAL/NOM_char_2017_04_15-pdf.txt"},
                "Grouping" : { "Initial" : "./groupings/corelli_grouping_6_banks.xml",
                               "Output"  : "./groupings/corelli_grouping_6_banks.xml"}
               },
+    "AlignAndFocusArgs" : { "TMin" : 300.0, "TMax" : 16667.0 },
     "CacheDir" : "./tmp",
     "OutputDir" : "./output"
 }
