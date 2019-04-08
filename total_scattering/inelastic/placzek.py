@@ -5,9 +5,9 @@ import scipy
 from mantid import mtd
 from mantid.simpleapi import CreateWorkspace, SetSampleMaterial
 
-from inelastic.incident_spectrum import fitTypeOpts
-from inelastic.incident_spectrum import runIncidentSpectrumTest, runFitIncidentSpectrumTest
-from inelastic.incident_spectrum import runNomadTest, runFitNomadIncidentSpectrumTest
+from total_scattering.inelastic.incident_spectrum import \
+    fitTypeOpts, runIncidentSpectrumTest, runFitIncidentSpectrumTest, \
+    runNomadTest, runFitNomadIncidentSpectrumTest
 
 
 # -------------------------------------------------------------------------
