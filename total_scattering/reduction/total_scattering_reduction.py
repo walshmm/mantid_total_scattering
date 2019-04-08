@@ -326,7 +326,7 @@ def main(config=None):
     # alignAndFocusArgs['CropWavelengthMax'] from characterizations file
     '''
 
-    if facility is 'SNS':
+    if facility == 'SNS':
         facility_file_format = '%s_%d'
     else:
         facility_file_format = '%s%d'
