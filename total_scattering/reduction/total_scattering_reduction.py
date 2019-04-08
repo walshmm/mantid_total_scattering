@@ -2,7 +2,6 @@
 from __future__ import (absolute_import, division, print_function)
 
 import os
-import json
 import itertools
 import numpy as np
 from scipy.constants import Avogadro
@@ -38,10 +37,10 @@ from mantid.simpleapi import \
     SetUncertainties, \
     StripVanadiumPeaks
 
-from file_handling.load import load
-from file_handling.save import save_banks
-from inelastic.incident_spectrum import FitIncidentSpectrum
-from inelastic.placzek import CalculatePlaczekSelfScattering
+from total_scattering.file_handling.load import load
+from total_scattering.file_handling.save import save_banks
+from total_scattering.inelastic.incident_spectrum import FitIncidentSpectrum
+from total_scattering.inelastic.placzek import CalculatePlaczekSelfScattering
 
 # Utilities
 
@@ -244,38 +243,32 @@ def print_unit_info(workspace):
 
 
 def SetInelasticCorrection(inelastic_dict):
+    default_inelastic_dict = {"Type": None}
+
     if inelastic_dict is None:
-        inelastic_dict = {"Type": None}
-        return inelastic_dict
+        return default_inelastic_dict
 
     corr_type = inelastic_dict["Type"]
+    if corr_type is None or corr_type == u'None':
+        return default_inelastic_dict
 
-    if corr_type == "Placzek":
-        default_settings = {"Order": "1st",
-                            "Self": True,
-                            "Interference": False,
-                            "FitSpectrumWith": "GaussConvCubicSpline",
-                            "LambdaBinning": "0.16,0.04,2.8"}
-        inelastic_settings = default_settings.copy()
-        inelastic_settings.update(inelastic_dict)
+    if corr_type:
+        if corr_type == "Placzek":
+            default_settings = {"Order": "1st",
+                                "Self": True,
+                                "Interference": False,
+                                "FitSpectrumWith": "GaussConvCubicSpline",
+                                "LambdaBinning": "0.16,0.04,2.8"}
+            inelastic_settings = default_settings.copy()
+            inelastic_settings.update(inelastic_dict)
 
-    else:
-        raise Exception("Unknown Inelastic Correction Type")
+        else:
+            raise Exception("Unknown Inelastic Correction Type")
 
     return inelastic_settings
 
 
-def main(config=None):
-    if not config:
-        import argparse
-        parser = argparse.ArgumentParser(
-            description="Absolute normalization PDF generation")
-        parser.add_argument('json', help='Input json file')
-        options = parser.parse_args()
-        print("loading config from '%s'" % options.json)
-        with open(options.json, 'r') as handle:
-            config = json.load(handle)
-
+def TotalScatteringReduction(config=None):
     facility = config['Facility']
     title = config['Title']
     instr = config['Instrument']
@@ -288,7 +281,7 @@ def main(config=None):
     sam_material = sample.get('Material', None)
 
     # Get normalization info
-    van = config['Vanadium']
+    van = config['Normalization']
     van_mass_density = van.get('MassDensity', None)
     van_packing_fraction = van.get('PackingFraction', 1.0)
     van_geometry = van.get('Geometry', None)
@@ -416,14 +409,16 @@ def main(config=None):
 
     if grouping:
         if 'Initial' in grouping:
-            LoadDetectorsGroupingFile(InputFile=grouping['Initial'],
-                                      OutputWorkspace=input_grp_wksp)
-            alignAndFocusArgs['GroupingWorkspace'] = input_grp_wksp
+            if grouping['Initial'] and not grouping['Initial'] == u'':
+                LoadDetectorsGroupingFile(InputFile=grouping['Initial'],
+                                          OutputWorkspace=input_grp_wksp)
+                alignAndFocusArgs['GroupingWorkspace'] = input_grp_wksp
 
         if 'Output' in grouping:
-            output_grouping = True
-            LoadDetectorsGroupingFile(InputFile=grouping['Output'],
-                                      OutputWorkspace=output_grp_wksp)
+            if grouping['Output'] and not grouping['Output'] == u'':
+                output_grouping = True
+                LoadDetectorsGroupingFile(InputFile=grouping['Output'],
+                                          OutputWorkspace=output_grp_wksp)
 
     # If no output grouping specified, create it with Calibration Grouping
     if not output_grouping:
@@ -437,7 +432,7 @@ def main(config=None):
     # Setup the 6 bank method if no grouping specified
     if not grouping:
         CreateGroupingWorkspace(InstrumentName=instr,
-                                GroupDetectorsBy='bank',
+                                GroupDetectorsBy='Group',
                                 OutputWorkspace=output_grp_wksp)
         alignAndFocusArgs['GroupingWorkspace'] = output_grp_wksp
 
@@ -1374,7 +1369,3 @@ def main(config=None):
                     % (','.join([ str(i) for i in wkspIndices]), \
                     fitParams.cell('Value', 0), fitParams.cell('Value', 1)) ]
 '''
-
-
-if __name__ == "__main__":
-    main()
