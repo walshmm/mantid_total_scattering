@@ -2,9 +2,7 @@
 from __future__ import (absolute_import, division, print_function)
 
 import os
-import itertools
 import numpy as np
-from scipy.constants import Avogadro
 
 from mantid import mtd
 from mantid.simpleapi import \
@@ -14,7 +12,6 @@ from mantid.simpleapi import \
     ConvertToDistribution, \
     ConvertToHistogram,\
     ConvertUnits, \
-    CreateEmptyTableWorkspace, \
     CreateGroupingWorkspace, \
     CropWorkspaceRagged, \
     Divide, \
@@ -29,7 +26,6 @@ from mantid.simpleapi import \
     PDDetermineCharacterizations, \
     PropertyManagerDataService, \
     Rebin, \
-    ResampleX, \
     SaveGSS, \
     SetSample, \
     SetUncertainties, \
@@ -37,151 +33,13 @@ from mantid.simpleapi import \
 
 from total_scattering.file_handling.load import load
 from total_scattering.file_handling.save import save_banks
+from total_scattering.reduction import utils
+from total_scattering.geometry import get_number_atoms
+from total_scattering.inelastic import set_inelastic_correction
 from total_scattering.inelastic.placzek import \
     CalculatePlaczekSelfScattering, \
     FitIncidentSpectrum, \
     GetIncidentSpectrumFromMonitor
-
-# Utilities
-def generate_cropping_table(qmin, qmax):
-    ''' Generate a Table workspace that can be used to crop
-    another workspace in reciprocal space (ie MomentumTransfer)
-
-    :param qmin: list of Qmin values to crop each spectra by
-    :type qmin: str (example: '0.2,0.4,1.0')
-    :param qmax: list of Qmax values to crop each spectra by
-    :type qmax: str (example: '10.5,12.0,40.0')
-
-    :return: Cropping table with columns of ("SpectraList","Xmin","Xmax")
-    :rtype: TableWorkspace
-    '''
-    mask_info = CreateEmptyTableWorkspace()
-    mask_info.addColumn("str", "SpectraList")
-    mask_info.addColumn("double", "XMin")
-    mask_info.addColumn("double", "XMax")
-    for (i, value) in enumerate(qmin):
-        mask_info.addRow([str(i), 0.0, value])
-    for (i, value) in enumerate(qmax):
-        mask_info.addRow([str(i), value, 100.0])
-
-    return mask_info
-
-def get_each_spectra_xmin_xmax(wksp):
-    ''' Get Xmin and Xmax lists for Workspace, excluding
-    values of inf and NaN
-
-    :param wksp: Workspace to extract the xmin and xmax values from
-    :type qmin: Mantid Workspace
-
-    :return: Lists for XMin and XMax values: 
-    :rtype: (list, list) == (xmin, xmax)
-    '''
-    xmin = list()
-    xmax = list()
-    numSpectra = wksp.getNumberHistograms()
-    for i in range(numSpectra):
-        x = wksp.readX(i)
-        xmin.append(np.nanmin(x[x != -np.inf]))
-        xmax.append(np.nanmax(x[x != np.inf]))
-    return xmin, xmax
-
-# -----------------------------------------------------
-# Function to expand string of ints with dashes
-# Ex. "1-3, 8-9, 12" -> [1,2,3,8,9,12]
-
-
-def expand_ints(s):
-    spans = (el.partition('-')[::2] for el in s.split(','))
-    ranges = (range(int(s), int(e) + 1 if e else int(s) + 1)
-              for s, e in spans)
-    all_nums = itertools.chain.from_iterable(ranges)
-    return list(all_nums)
-
-# -------------------------------------------------------------------------
-# Function to compress list of ints with dashes
-# Ex. [1,2,3,8,9,12] -> 1-3, 8-9, 12
-
-
-def compress_ints(line_nums):
-    seq = []
-    final = []
-    last = 0
-
-    for index, val in enumerate(line_nums):
-
-        if last + 1 == val or index == 0:
-            seq.append(val)
-            last = val
-        else:
-            if len(seq) > 1:
-                final.append(str(seq[0]) + '-' + str(seq[len(seq) - 1]))
-            else:
-                final.append(str(seq[0]))
-            seq = []
-            seq.append(val)
-            last = val
-
-        if index == len(line_nums) - 1:
-            if len(seq) > 1:
-                final.append(str(seq[0]) + '-' + str(seq[len(seq) - 1]))
-            else:
-                final.append(str(seq[0]))
-
-    final_str = ', '.join(map(str, final))
-    return final_str
-
-# -------------------------------------------------------------------------
-# Volume in Beam
-
-
-class Shape(object):
-    def __init__(self):
-        self.shape = None
-
-    def getShape(self):
-        return self.shape
-
-
-class Cylinder(Shape):
-    def __init__(self):
-        self.shape = 'Cylinder'
-
-    def volume(self, Radius=None, Height=None, **kwargs):
-        return np.pi * Height * Radius * Radius
-
-
-class Sphere(Shape):
-    def __init__(self):
-        self.shape = 'Sphere'
-
-    def volume(self, Radius=None, **kwargs):
-        return (4. / 3.) * np.pi * Radius * Radius * Radius
-
-
-class GeometryFactory(object):
-
-    @staticmethod
-    def factory(Geometry):
-        factory = {"Cylinder": Cylinder(),
-                   "Sphere": Sphere()}
-        return factory[Geometry["Shape"]]
-
-
-def getNumberAtoms(PackingFraction, MassDensity, MolecularMass, Geometry=None):
-    # setup the geometry of the sample
-    if Geometry is None:
-        Geometry = dict()
-    if "Shape" not in Geometry:
-        Geometry["Shape"] = 'Cylinder'
-
-    # get sample volume in container
-    space = GeometryFactory.factory(Geometry)
-    volume_in_beam = space.volume(**Geometry)
-
-    number_density = PackingFraction * MassDensity / \
-        MolecularMass * Avogadro  # atoms/cm^3
-    natoms = number_density * volume_in_beam  # atoms
-    return natoms
 
 # Event Filters
 
@@ -216,144 +74,6 @@ def GenerateEventsFilterFromFiles(filenames, OutputWorkspace,
             mtd[InformationWorkspace].add(infows)
     return
 
-# -------------------------------------------------------------------------
-# Utils
-
-
-def print_unit_info(workspace):
-    ws = mtd[workspace]
-    for i in range(ws.axes()):
-        axis = ws.getAxis(i)
-        print(
-            "Axis {0} is a {1}{2}{3}".format(
-                i,
-                "Spectrum Axis" if axis.isSpectra() else "",
-                "Text Axis" if axis.isText() else "",
-                "Numeric Axis" if axis.isNumeric() else ""))
-
-        unit = axis.getUnit()
-        print("\n YUnit:{0}".format(ws.YUnit()))
-        print("\t caption:{0}".format(unit.caption()))
-        print("\t symbol:{0}".format(unit.symbol()))
-    return
-
-
-def SetInelasticCorrection(inelastic_dict):
-    default_inelastic_dict = {"Type": None}
-
-    if inelastic_dict is None:
-        return default_inelastic_dict
-
-    corr_type = inelastic_dict["Type"]
-    if corr_type is None or corr_type == u'None':
-        return default_inelastic_dict
-
-    if corr_type:
-        if corr_type == "Placzek":
-            default_settings = {"Order": "1st",
-                                "Self": True,
-                                "Interference": False,
-                                "FitSpectrumWith": "GaussConvCubicSpline",
-                                "LambdaBinning": "0.16,0.04,2.8"}
-            inelastic_settings = default_settings.copy()
-            inelastic_settings.update(inelastic_dict)
-
-        else:
-            raise Exception("Unknown Inelastic Correction Type")
-
-    return inelastic_settings
-
-
-def one_and_only_one(iterable):
-    """Determine if iterable (ie list) has one and only one `True` value
-
-    :param iterable: The iterable to check
-    :type iterable: list
-
-    :return: If there is one and only one True
-    :rtype: bool
-    """
-    try:
-        iterator = iter(iterable)
-        has_true = any(iterator)
-        has_another_true = any(iterator)
-        return has_true and not has_another_true
-    except Exception as e:
-        print(e)
-        raise
-
-
-def find_key_match_in_dict(keys, dictionary):
-    """ Check if one and only one of the keys is in the dictionary
-    and return its value
-
-    :param key: Keys we will check for in dictionary
-    :type key: str
-    :param dictionary: Dictionary to check
-    :type dictionary: dict
-
-    :return: Either the value in dictionary for the key or None if not found
-    :rtype: value in dict or None
-    """
-    # Get the boolean for each key if it exists in the dictionary
-    keys_exist_in_dict = map(lambda key: key in dictionary, keys)
-
-    # If only one exists, return the match, else raise exception
-    if one_and_only_one(keys_exist_in_dict):
-        for key in keys:
-            if key in dictionary:
-                return dictionary[key]
-
-    # None of the keys in the dictionary, return None
-    return None
-
-
-def extract_key_match_from_dict(keys, dictionary):
-    """ Convienence function for extraction of one key from dictionary
-
-    :param keys: Keys to check against dictionary
-    :type keys: list
-    :param dictionary: Dictionary to check
-    "type dictionary: dict
-
-    :return: The exctracted value
-    :rtype: any
-    """
-    out = find_key_match_in_dict(keys, dictionary)
-    if out:
-        return out
-    else:
-        e = "No matching key found. Valid keys are {}".format(keys)
-        raise Exception(e)
-
-
-def get_sample(config):
-    """ Extract the sample section from JSON input
-
-    :param config: JSON input for reduction
-    :type config: dict
-
-    :return: The exctracted value for sample in the input
-    :rtype: any
-    """
-    keys = ["Sample"]
-    out = extract_key_match_from_dict(keys, config)
-    return out
-
-
-def get_normalization(config):
-    """ Extract the normalization section from JSON input
-
-    :param config: JSON input for reduction
-    :type config: dict
-
-    :return: The exctracted value for normalization in the input
-    :rtype: any
-    """
-    keys = ["Normalization", "Normalisation", "Vanadium"]
-    out = extract_key_match_from_dict(keys, config)
-    return out
-
 
 def TotalScatteringReduction(config=None):
     facility = config['Facility']
@@ -385,8 +105,8 @@ def TotalScatteringReduction(config=None):
     OutputDir = config.get("OutputDir", os.path.abspath('.'))
 
     # Create Nexus file basenames
-    sample['Runs'] = expand_ints(sample['Runs'])
-    sample['Background']['Runs'] = expand_ints(
+    sample['Runs'] = utils.expand_ints(sample['Runs'])
+    sample['Background']['Runs'] = utils.expand_ints(
         sample['Background'].get('Runs', None))
 
     '''
@@ -418,21 +138,21 @@ def TotalScatteringReduction(config=None):
                                 for num in sample['Background']["Runs"]])
     container_bg = None
     if "Background" in sample['Background']:
-        sample['Background']['Background']['Runs'] = expand_ints(
+        sample['Background']['Background']['Runs'] = utils.expand_ints(
             sample['Background']['Background']['Runs'])
         container_bg = ','.join([facility_file_format % (
             instr, num) for num in sample['Background']['Background']['Runs']])
         if len(container_bg) == 0:
             container_bg = None
 
-    van['Runs'] = expand_ints(van['Runs'])
+    van['Runs'] = utils.expand_ints(van['Runs'])
     van_scans = ','.join([facility_file_format % (instr, num)
                           for num in van['Runs']])
 
     van_bg_scans = None
     if 'Background' in van:
         van_bg_scans = van['Background']['Runs']
-        van_bg_scans = expand_ints(van_bg_scans)
+        van_bg_scans = utils.expand_ints(van_bg_scans)
         van_bg_scans = ','.join([facility_file_format %
                                  (instr, num) for num in van_bg_scans])
 
@@ -461,7 +181,7 @@ def TotalScatteringReduction(config=None):
     # Get sample corrections
     sam_abs_corr = sample.get("AbsorptionCorrection", None)
     sam_ms_corr = sample.get("MultipleScatteringCorrection", None)
-    sam_inelastic_corr = SetInelasticCorrection(
+    sam_inelastic_corr = set_inelastic_correction(
         sample.get('InelasticCorrection', None))
 
     # Get vanadium corrections
@@ -471,7 +191,7 @@ def TotalScatteringReduction(config=None):
         van_packing_fraction)
     van_abs_corr = van.get("AbsorptionCorrection", {"Type": None})
     van_ms_corr = van.get("MultipleScatteringCorrection", {"Type": None})
-    van_inelastic_corr = SetInelasticCorrection(
+    van_inelastic_corr = set_inelastic_correction(
         van.get('InelasticCorrection', None))
 
     alignAndFocusArgs = dict()
@@ -544,7 +264,7 @@ def TotalScatteringReduction(config=None):
 
     sam_molecular_mass = mtd[sam_wksp].sample(
     ).getMaterial().relativeMolecularMass()
-    natoms = getNumberAtoms(
+    natoms = get_number_atoms(
         sam_packing_fraction,
         sam_mass_density,
         sam_molecular_mass,
@@ -602,7 +322,7 @@ def TotalScatteringReduction(config=None):
 
     van_molecular_mass = mtd[van_wksp].sample(
     ).getMaterial().relativeMolecularMass()
-    nvan_atoms = getNumberAtoms(
+    nvan_atoms = get_number_atoms(
         1.0,
         van_mass_density,
         van_molecular_mass,
@@ -1220,14 +940,14 @@ def TotalScatteringReduction(config=None):
 
     ConvertToHistogram(InputWorkspace=sam_corrected,
                        OutputWorkspace=sam_corrected)
-    
-    xmin, xmax = get_each_spectra_xmin_xmax(mtd[sam_corrected])
+
+    xmin, xmax = utils.get_each_spectra_xmin_xmax(mtd[sam_corrected])
 
     CropWorkspaceRagged(InputWorkspace=sam_corrected,
                         OutputWorkspace=sam_corrected,
                         Xmin=xmin,
                         Xmax=xmax)
-    
+
     xmin_rebin = min(xmin)
     xmax_rebin = max(xmax)
     tof_binning = "{xmin},-0.01,{xmax}".format(xmin=xmin_rebin, xmax=xmax_rebin)
@@ -1236,15 +956,14 @@ def TotalScatteringReduction(config=None):
         InputWorkspace=sam_corrected,
         OutputWorkspace=sam_corrected,
         Params=tof_binning)
-         
 
     SaveGSS(InputWorkspace=sam_corrected,
-        Filename=os.path.join(os.path.abspath(OutputDir),title+".gsa"),
-        SplitFiles=False,
-        Append=False,
-        MultiplyByBinWidth=True,
-        Format="SLOG",
-        ExtendedHeader=True)
+            Filename=os.path.join(os.path.abspath(OutputDir), title+".gsa"),
+            SplitFiles=False,
+            Append=False,
+            MultiplyByBinWidth=True,
+            Format="SLOG",
+            ExtendedHeader=True)
 
     return mtd[sam_corrected]
     # process the run
