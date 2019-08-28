@@ -81,14 +81,14 @@ def TotalScatteringReduction(config=None):
     instr = config['Instrument']
 
     # Get sample info
-    sample = get_sample(config)
+    sample = utils.get_sample(config)
     sam_mass_density = sample.get('MassDensity', None)
     sam_packing_fraction = sample.get('PackingFraction', None)
     sam_geometry = sample.get('Geometry', None)
     sam_material = sample.get('Material', None)
 
     # Get normalization info
-    van = get_normalization(config)
+    van = utils.get_normalization(config)
     van_mass_density = van.get('MassDensity', None)
     van_packing_fraction = van.get('PackingFraction', 1.0)
     van_geometry = van.get('Geometry', None)
@@ -967,4 +967,3 @@ def TotalScatteringReduction(config=None):
 
     return mtd[sam_corrected]
     # process the run
-
