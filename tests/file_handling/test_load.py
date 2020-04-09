@@ -2,7 +2,7 @@ import os
 import unittest
 import numpy as np
 
-from total_scattering.file_handling.load import load, create_absorption_wksp
+from total_scattering.file_handling import load, create_absorption_wksp
 from tests import EXAMPLE_DIR, TEST_DATA_DIR
 
 from mantid.simpleapi import mtd
