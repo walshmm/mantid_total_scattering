@@ -91,7 +91,8 @@ def fitCubicSplineWithGaussConv(x_fit, y_fit, x, sigma=3):
         return average, var
 
     avg, var = moving_average(y_fit)
-    spline_fit = interpolate.UnivariateSpline(x_fit, y_fit, w=1. / np.sqrt(var))
+    spline_fit = interpolate.UnivariateSpline(
+        x_fit, y_fit, w=1. / np.sqrt(var))
     spline_fit_prime = spline_fit.derivative()
     fit = spline_fit(x)
     fit_prime = spline_fit_prime(x)
@@ -116,7 +117,8 @@ def GetIncidentSpectrumFromMonitor(
     LoadNexusMonitors(Filename=Filename, OutputWorkspace=monitor)
     ConvertUnits(InputWorkspace=monitor, OutputWorkspace=monitor,
                  Target='Wavelength', EMode='Elastic')
-    lambdaMin, lambdaBinning, lambdaMax = [float(x) for x in Binning.split(',')]
+    lambdaMin, lambdaBinning, lambdaMax = [
+        float(x) for x in Binning.split(',')]
     for x in [lambdaMin, lambdaBinning, lambdaMax]:
         print(x, type(x))
     if BinType == 'ResampleX':
@@ -136,7 +138,8 @@ def GetIncidentSpectrumFromMonitor(
 
     lam = mtd[monitor].readX(IncidentIndex)    # wavelength in A
     bm = mtd[monitor].readY(IncidentIndex)     # neutron counts / microsecond
-    p = 0.000794807                       # Pressure
+    # Pressure (empirically adjusted to match eff.)
+    p = 0.000794807
     thickness = .1                        # 1 mm = .1 cm
     abs_xs_3He = 5333.0                   # barns for lambda == 1.798 A
     p_to_rho = 2.43e-5                    # pressure to rho (atoms/angstroms^3)
@@ -156,8 +159,7 @@ def GetIncidentSpectrumFromMonitor(
 def FitIncidentSpectrum(InputWorkspace, OutputWorkspace,
                         FitSpectrumWith='GaussConvCubicSpline',
                         BinningForFit="0.15,0.05,3.2",
-                        BinningForCalc=None,
-                        PlotDiagnostics=False):
+                        BinningForCalc=None):
 
     incident_ws = mtd[InputWorkspace]
 
