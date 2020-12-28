@@ -129,20 +129,19 @@ class GeometryFactory(object):
         return factory[Geometry["Shape"]]
 
 
-def get_number_atoms(PackingFraction, MassDensity, MolecularMass, Geometry=None):
+def get_number_atoms(packing_fraction, mass_density, mass, geometry=None):
     # setup the geometry of the sample
-    if Geometry is None:
-        Geometry = dict()
-    if "Shape" not in Geometry:
-        Geometry["Shape"] = 'Cylinder'
+    if geometry is None:
+        geometry = dict()
+    if "Shape" not in geometry:
+        geometry["Shape"] = 'Cylinder'
 
     # get sample volume in container
-    space = GeometryFactory.factory(Geometry)
-    volume_in_beam = space.volume(**Geometry)
+    space = GeometryFactory.factory(geometry)
+    volume_in_beam = space.volume(**geometry)
 
-    number_density = PackingFraction * MassDensity / \
-        MolecularMass * Avogadro  # atoms/cm^3
-    natoms = number_density * volume_in_beam  # atoms
+    number_density = packing_fraction * mass_density / mass * Avogadro
+    natoms = number_density * volume_in_beam
     return natoms
 
 
