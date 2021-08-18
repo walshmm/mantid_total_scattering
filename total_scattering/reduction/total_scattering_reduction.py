@@ -973,6 +973,8 @@ def TotalScatteringReduction(config=None):
         van_inelastic_opts = van['InelasticCorrection']
         lambda_binning_fit = van_inelastic_opts['LambdaBinningForFit']
         lambda_binning_calc = van_inelastic_opts['LambdaBinningForCalc']
+        van_order = va_inelastic_opts['Order']
+
         print('van_scan:', van_scan)
         GetIncidentSpectrumFromMonitor(
             Filename=facility_file_format % (instr, van_scan),
@@ -993,14 +995,29 @@ def TotalScatteringReduction(config=None):
             InputWorkspace=van_incident_wksp,
             Material={'ChemicalFormula': str(van_material),
                       'SampleMassDensity': str(van_mass_density)})
+       #Call new algo if second order calculation needed
+        if(2 == van_order):
+            #call new Placzek Algo
+            CalculatePlaczek(
+                IncidentWorkspace=van_incident_wksp,
+                ParentWorkspace=van_corrected,
+                OutputWorkspace=van_placzek,
+                L1=19.5,
+                L2=alignAndFocusArgs['L2'],
+                Polar=alignAndFocusArgs['Polar'],
+                Order=2)
+        else:
+            if(1 > van_order or 2 < van_order):
+                log.warning("Invalid Order value, defaulting to 1.")
 
-        CalculatePlaczekSelfScattering(
-            IncidentWorkspace=van_incident_wksp,
-            ParentWorkspace=van_corrected,
-            OutputWorkspace=van_placzek,
-            L1=19.5,
-            L2=alignAndFocusArgs['L2'],
-            Polar=alignAndFocusArgs['Polar'])
+            #Call old algo for every other value of order
+            CalculatePlaczekSelfScattering(
+                IncidentWorkspace=van_incident_wksp,
+                ParentWorkspace=van_corrected,
+                OutputWorkspace=van_placzek,
+                L1=19.5,
+                L2=alignAndFocusArgs['L2'],
+                Polar=alignAndFocusArgs['Polar'])
 
         ConvertToHistogram(
             InputWorkspace=van_placzek,
@@ -1334,6 +1351,8 @@ def TotalScatteringReduction(config=None):
             sam_inelastic_opts = sample['InelasticCorrection']
             lambda_binning_fit = sam_inelastic_opts['LambdaBinningForFit']
             lambda_binning_calc = sam_inelastic_opts['LambdaBinningForCalc']
+            sam_order = sam_inelastic_opts['Order']
+
             GetIncidentSpectrumFromMonitor(
                 Filename=facility_file_format % (instr, sam_scan),
                 OutputWorkspace=sam_incident_wksp)
@@ -1352,13 +1371,28 @@ def TotalScatteringReduction(config=None):
                 Material={'ChemicalFormula': str(sam_material),
                           'SampleMassDensity': str(sam_mass_density)})
 
-            CalculatePlaczekSelfScattering(
-                IncidentWorkspace=sam_incident_wksp,
-                ParentWorkspace=sam_corrected,
-                OutputWorkspace=sam_placzek,
-                L1=19.5,
-                L2=alignAndFocusArgs['L2'],
-                Polar=alignAndFocusArgs['Polar'])
+            #Call new algo if second order calculation needed
+            if(2 == sam_order):
+                #call new Placzek Algo
+                CalculatePlaczek(
+                    IncidentWorkspace=van_incident_wksp,
+                    ParentWorkspace=van_corrected,
+                    OutputWorkspace=van_placzek,
+                    L1=19.5,
+                    L2=alignAndFocusArgs['L2'],
+                    Polar=alignAndFocusArgs['Polar'],
+                    Order=2)
+            else:
+                if(1 > van_order or 2 < van_order):
+                    log.warning("Invalid Order value, defaulting to 1.")
+                #Call old algo for every other value of order
+                CalculatePlaczekSelfScattering(
+                    IncidentWorkspace=sam_incident_wksp,
+                    ParentWorkspace=sam_corrected,
+                    OutputWorkspace=sam_placzek,
+                    L1=19.5,
+                    L2=alignAndFocusArgs['L2'],
+                    Polar=alignAndFocusArgs['Polar'])
 
             ConvertToHistogram(
                 InputWorkspace=sam_placzek,
