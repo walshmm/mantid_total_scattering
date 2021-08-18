@@ -973,6 +973,7 @@ def TotalScatteringReduction(config=None):
         van_inelastic_opts = van['InelasticCorrection']
         lambda_binning_fit = van_inelastic_opts['LambdaBinningForFit']
         lambda_binning_calc = van_inelastic_opts['LambdaBinningForCalc']
+        #optional order param determines if 2nd order calculation is needed
         van_order = va_inelastic_opts['Order']
 
         print('van_scan:', van_scan)
@@ -1351,6 +1352,7 @@ def TotalScatteringReduction(config=None):
             sam_inelastic_opts = sample['InelasticCorrection']
             lambda_binning_fit = sam_inelastic_opts['LambdaBinningForFit']
             lambda_binning_calc = sam_inelastic_opts['LambdaBinningForCalc']
+            #optional order param determines if 2nd order calculation is needed
             sam_order = sam_inelastic_opts['Order']
 
             GetIncidentSpectrumFromMonitor(
